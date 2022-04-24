@@ -25,7 +25,6 @@ bool TrailNode::init(Node* container, std::function<Node* ()> createTrail, Trail
 	CCASSERT(trailLifeTime >= 0, "trailLifeTime should be positive");
 	CCASSERT(followTrailCount >= 0, "followTrailCount should be positive");
 
-	m_container = container;
 	m_createTrail = &createTrail;
 	m_trailMotionType = trailMotionType;
 	m_trailSpawnFrequency = trailSpawnFrequency;
@@ -34,13 +33,13 @@ bool TrailNode::init(Node* container, std::function<Node* ()> createTrail, Trail
 
 	this->setCascadeOpacityEnabled(true);
 	this->removeAllChildren();
-	this->addChild(m_container);
-	m_container->setPosition(Vec2::ZERO);
+	this->addChild(container);
+	container->setPosition(Vec2::ZERO);
 	this->scheduleUpdate();
 
 	int trailCount = m_trailSpawnFrequency * (int)ceil(m_trailLifeTime);
 	if (m_trailSpawnFrequency == 0) {
-		trailCount = ASSUMED_FRAME_RATE  * (int)ceil(m_trailLifeTime);
+		trailCount = ASSUMED_FRAME_RATE * (int)ceil(m_trailLifeTime);
 	}
 	if (m_trailMotionType == TrailMotionType::FOLLOW) {
 		trailCount = m_followTrailCount;
@@ -51,8 +50,7 @@ bool TrailNode::init(Node* container, std::function<Node* ()> createTrail, Trail
 			m_trails.push_back(trail);
 			trail->setVisible(false);
 			this->addChild(trail);
-		}
-		else {
+		} else {
 			return false;
 		}
 	}
@@ -72,6 +70,9 @@ void TrailNode::update(float dt) {
 			trail->setPosition(m_positionHistory.at(positionHistoryIndex));
 			m_trailPositionIndex[trail] = positionHistoryIndex;
 			m_lastSpawnPosition = m_positionHistory.at(positionHistoryIndex);
+			if (m_trailPositionIndex.size() == 1) {
+				m_leadTrail = trail;
+			}
 		} else {
 			trail->stopAllActions();
 			trail->setVisible(true);
@@ -79,11 +80,9 @@ void TrailNode::update(float dt) {
 			const Vec2& finalPosition = m_lastSpawnPosition.lerp(this->getPosition(), 0.9f);
 			if (m_trailMotionType == TrailMotionType::STATIC) {
 				trail->setPosition(initialPosition);
-			}
-			else if (m_trailMotionType == TrailMotionType::STATIC_MOVE_OUT) {
+			} else if (m_trailMotionType == TrailMotionType::STATIC_MOVE_OUT) {
 				this->moveTrail(trail, initialPosition, finalPosition);
-			}
-			else if (m_trailMotionType == TrailMotionType::STATIC_MOVE_IN) {
+			} else if (m_trailMotionType == TrailMotionType::STATIC_MOVE_IN) {
 				this->moveTrail(trail, finalPosition, initialPosition);
 			}
 			this->fadeTrail(trail);
@@ -109,21 +108,26 @@ void TrailNode::update(float dt) {
 			m_positionHistory.pop_front();
 		}
 
-		for (auto it = m_trailPositionIndex.begin(); it != m_trailPositionIndex.end(); it++) {
-			const Vec2& windowEntryPosition = m_positionHistory.at(it->second + m_followTrailFramesSpan - 1);
-			if (windowEntryPosition == m_positionHistory.back()) {
-				if (m_trailWindowTrack[it->first][windowEntryPosition] == 0) {
-					m_trailWindowTrack[it->first].clear();
-				}
-				m_trailWindowTrack[it->first][windowEntryPosition]++;
-			}
+		const Vec2& windowEntryPosition = this->getPosition();
+		if (m_trailWindowTrack[windowEntryPosition] == 0) {
+			m_trailWindowTrack.clear();
 		}
+		m_trailWindowTrack[windowEntryPosition]++;
+
 		if (m_trailPositionIndex.size() > 0) {
-			Node* trail = m_trailPositionIndex.begin()->first;
-			if (m_trailWindowTrack[trail][m_positionHistory.back()] >= m_followTrailFramesSpan) {
-				trail->setVisible(false);
-				m_trailWindowTrack[trail].clear();
-				m_trailPositionIndex.erase(trail);
+			if (m_trailWindowTrack[this->getPosition()] >= m_followTrailFramesSpan) {
+				m_leadTrail->setVisible(false);
+				m_trailPositionIndex.erase(m_leadTrail);
+				m_trailWindowTrack.clear();
+
+				int maxPositionIndex = INT_MIN;
+				for (auto it = m_trailPositionIndex.begin(); it != m_trailPositionIndex.end(); it++) {
+					if (it->second > maxPositionIndex) {
+						maxPositionIndex = it->second;
+						m_leadTrail = it->first;
+					}
+					it->second += m_followTrailFramesSpan;
+				}
 			}
 		}
 	}

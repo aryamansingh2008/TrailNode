@@ -85,7 +85,6 @@ public:
 	void setFollowTrailCount(int followTrailCount);
 
 private:
-	Node* m_container{ nullptr };
 	std::function<Node* ()>* m_createTrail{ nullptr };
 	std::vector<Node*> m_trails{};
 	int m_trailSpawnFrequency{ 0 };
@@ -100,7 +99,8 @@ private:
 	TrailMotionType m_trailMotionType{ TrailMotionType::STATIC };
 	std::deque<Vec2> m_positionHistory{};
 	std::map<Node*, int> m_trailPositionIndex;
-	std::map<Node*, std::map<Vec2, int>> m_trailWindowTrack{};
+	std::map<Vec2, int> m_trailWindowTrack{};
+	Node* m_leadTrail{ nullptr };
 
 private:
 	void clearTrails();

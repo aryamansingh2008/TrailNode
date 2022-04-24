@@ -38,9 +38,9 @@ bool TrailNode::init(Node* container, std::function<Node* ()> createTrail, Trail
 	m_container->setPosition(Vec2::ZERO);
 	this->scheduleUpdate();
 
-	int trailCount = ASSUMED_FRAME_RATE / m_trailSpawnFrequency * (int)ceil(m_trailLifeTime);
+	int trailCount = m_trailSpawnFrequency * (int)ceil(m_trailLifeTime);
 	if (m_trailSpawnFrequency == 0) {
-		trailCount = ASSUMED_FRAME_RATE / m_trailSpawnFrequency * (int)ceil(m_trailLifeTime);
+		trailCount = ASSUMED_FRAME_RATE  * (int)ceil(m_trailLifeTime);
 	}
 	if (m_trailMotionType == TrailMotionType::FOLLOW) {
 		trailCount = m_followTrailCount;
@@ -63,7 +63,16 @@ bool TrailNode::init(Node* container, std::function<Node* ()> createTrail, Trail
 void TrailNode::update(float dt) {
 	if (this->shouldSpawnTrail()) {
 		Node* trail = m_trails.at(m_currentTrailIndex);
-		if (m_trailMotionType != TrailMotionType::FOLLOW) {
+		if (m_trailMotionType == TrailMotionType::FOLLOW) {
+			trail->stopAllActions();
+			trail->setVisible(true);
+			trail->setOpacity(0);
+			trail->runAction(FadeIn::create(0.3f));
+			int positionHistoryIndex = m_positionHistory.size() - m_followTrailFramesSpan * (m_trailPositionIndex.size() + 1);
+			trail->setPosition(m_positionHistory.at(positionHistoryIndex));
+			m_trailPositionIndex[trail] = positionHistoryIndex;
+			m_lastSpawnPosition = m_positionHistory.at(positionHistoryIndex);
+		} else {
 			trail->stopAllActions();
 			trail->setVisible(true);
 			const Vec2& initialPosition = this->getPosition();
@@ -79,16 +88,6 @@ void TrailNode::update(float dt) {
 			}
 			this->fadeTrail(trail);
 			m_lastSpawnPosition = this->getPosition();
-		}
-		else {
-			trail->stopAllActions();
-			trail->setVisible(true);
-			trail->setOpacity(0);
-			trail->runAction(FadeIn::create(0.3f));
-			int positionHistoryIndex = m_positionHistory.size() - m_followTrailFramesSpan * (m_trailPositionIndex.size() + 1);
-			trail->setPosition(m_positionHistory.at(positionHistoryIndex));
-			m_trailPositionIndex[trail] = positionHistoryIndex;
-			m_lastSpawnPosition = m_positionHistory.at(positionHistoryIndex);
 		}
 
 		m_frameCount = 0;
@@ -110,7 +109,6 @@ void TrailNode::update(float dt) {
 			m_positionHistory.pop_front();
 		}
 
-		int i = 0;
 		for (auto it = m_trailPositionIndex.begin(); it != m_trailPositionIndex.end(); it++) {
 			const Vec2& windowEntryPosition = m_positionHistory.at(it->second + m_followTrailFramesSpan - 1);
 			if (windowEntryPosition == m_positionHistory.back()) {
@@ -119,7 +117,6 @@ void TrailNode::update(float dt) {
 				}
 				m_trailWindowTrack[it->first][windowEntryPosition]++;
 			}
-			i++;
 		}
 		if (m_trailPositionIndex.size() > 0) {
 			Node* trail = m_trailPositionIndex.begin()->first;
@@ -275,7 +272,7 @@ void TrailNode::clearTrails() {
 bool TrailNode::shouldSpawnTrail() {
 	int spawnFrame = 1;
 	if (m_trailSpawnFrequency > 0) {
-		int spawnFrame = ASSUMED_FRAME_RATE / m_trailSpawnFrequency;
+		spawnFrame = ASSUMED_FRAME_RATE / m_trailSpawnFrequency;
 	}
 
 	if (m_trailMotionType == TrailMotionType::FOLLOW) {
